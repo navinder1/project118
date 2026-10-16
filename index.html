@@ -1,0 +1,260 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Happy Navaratri</title>
+
+<link href="https://fonts.googleapis.com/css2?family=Playfair+Display:wght@700&family=Poppins:wght@400;600;700&display=swap" rel="stylesheet">
+
+<style>
+* {
+  margin: 0;
+  padding: 0;
+  box-sizing: border-box;
+}
+
+body {
+  font-family: 'Poppins', sans-serif;
+  background: #350512;
+  color: white;
+}
+
+nav {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  padding: 22px 8%;
+  background: #4b0717;
+  border-bottom: 1px solid #e8b75a;
+}
+
+.logo {
+  color: #ffd779;
+  font-size: 25px;
+  font-weight: bold;
+}
+
+nav a {
+  color: white;
+  text-decoration: none;
+  margin-left: 22px;
+}
+
+.hero {
+  min-height: 85vh;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  text-align: center;
+  padding: 55px 20px;
+  background:
+    linear-gradient(135deg, rgba(45,0,13,.90),
+    rgba(120,8,29,.78)),
+    url("https://images.unsplash.com/photo-1604608672516-8c9c8e8a0a8b?auto=format&fit=crop&w=1600&q=80")
+    center/cover;
+}
+
+.hero-content {
+  max-width: 800px;
+}
+
+.om {
+  color: #ffd36e;
+  font-size: 55px;
+  margin-bottom: 15px;
+}
+
+h1 {
+  font-family: 'Playfair Display', serif;
+  color: #ffdb82;
+  font-size: clamp(42px, 8vw, 82px);
+  line-height: 1.15;
+  margin-bottom: 22px;
+  text-shadow: 0 0 25px #d64a20;
+}
+
+.hero p {
+  font-size: 18px;
+  line-height: 1.8;
+  margin-bottom: 30px;
+}
+
+.btn {
+  display: inline-block;
+  padding: 14px 32px;
+  border-radius: 30px;
+  background: linear-gradient(45deg, #ffb52e, #ffe6a0);
+  color: #65091b;
+  font-weight: 700;
+  text-decoration: none;
+  box-shadow: 0 0 22px #f5a62370;
+  transition: .3s;
+}
+
+.btn:hover {
+  transform: translateY(-4px);
+  box-shadow: 0 0 30px #ffc451;
+}
+
+.section {
+  padding: 65px 8%;
+  text-align: center;
+}
+
+.section h2 {
+  font-family: 'Playfair Display', serif;
+  color: #ffd779;
+  font-size: 36px;
+  margin-bottom: 20px;
+}
+
+.section p {
+  line-height: 1.9;
+}
+
+.cards {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(220px, 1fr));
+  gap: 24px;
+  margin-top: 35px;
+}
+
+.card {
+  background: #590b20;
+  border: 1px solid #a85c35;
+  padding: 30px 20px;
+  border-radius: 18px;
+  transition: .3s;
+}
+
+.card:hover {
+  transform: translateY(-7px);
+  border-color: #ffd779;
+}
+
+.card .symbol {
+  font-size: 40px;
+  margin-bottom: 15px;
+}
+
+.card h3 {
+  color: #ffd779;
+  margin-bottom: 12px;
+}
+
+footer {
+  text-align: center;
+  padding: 28px;
+  color: #ffd779;
+  background: #24020c;
+  border-top: 1px solid #a85c35;
+}
+
+#blessing {
+  display: none;
+  color: #ffe6a0;
+  margin-top: 20px;
+  font-size: 18px;
+}
+
+@media (max-width: 600px) {
+  nav {
+    flex-direction: column;
+    gap: 14px;
+  }
+
+  nav a {
+    margin: 0 7px;
+    font-size: 13px;
+  }
+
+  .hero {
+    min-height: 75vh;
+  }
+
+  .section {
+    padding: 45px 6%;
+  }
+}
+</style>
+</head>
+
+<body>
+
+<nav>
+  <div class="logo">🪔 शुभ नवरात्रि</div>
+  <div>
+    <a href="#home">Home</a>
+    <a href="#festival">Festival</a>
+    <a href="#wishes">Wishes</a>
+  </div>
+</nav>
+
+<section class="hero" id="home">
+  <div class="hero-content">
+    <div class="om">ॐ</div>
+    <h1>Happy Navaratri</h1>
+    <p>
+      Celebrate nine divine nights of devotion, strength,
+      happiness and prosperity. May Maa Durga bless your
+      life with peace, courage and endless joy.
+    </p>
+    <a href="#festival" class="btn">Celebrate the Divine ✨</a>
+  </div>
+</section>
+
+<section class="section" id="festival">
+  <h2>The Spirit of Navaratri</h2>
+  <p>
+    Nine nights. Divine energy. Endless blessings.
+    Celebrate the victory of good over evil.
+  </p>
+
+  <div class="cards">
+    <div class="card">
+      <div class="symbol">🙏</div>
+      <h3>Devotion</h3>
+      <p>Offer prayers and seek the blessings of Maa Durga.</p>
+    </div>
+
+    <div class="card">
+      <div class="symbol">💃</div>
+      <h3>Garba & Dandiya</h3>
+      <p>Celebrate with music, dance and festive joy.</p>
+    </div>
+
+    <div class="card">
+      <div class="symbol">🪔</div>
+      <h3>Light & Hope</h3>
+      <p>May divine light bring happiness into every home.</p>
+    </div>
+  </div>
+</section>
+
+<section class="section" id="wishes">
+  <h2>Divine Blessings</h2>
+  <p>May Maa Durga remove every obstacle and fill your life
+     with health, happiness, courage and prosperity.</p>
+  <br>
+  <button class="btn" onclick="showBlessing()">
+    Receive Blessings 🙏
+  </button>
+  <p id="blessing">
+    🌺 Jai Mata Di! May Maa Durga bless you and your family! 🌺
+  </p>
+</section>
+
+<footer>
+  🪔 जय माता दी 🪔
+  <p>Made with devotion and love for Navaratri ❤️</p>
+</footer>
+
+<script>
+function showBlessing() {
+  document.getElementById("blessing").style.display = "block";
+}
+</script>
+
+</body>
+</html>
