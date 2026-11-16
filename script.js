@@ -10,8 +10,8 @@ const SITE = {
 // Google Sheet that holds your daily jobs (public, Viewer only).
 // Sheet must be shared: Share > General access > "Anyone with the link" > Viewer
 const SHEET = {
-  id: "181-DZ6WMudyfrxoLTpmHboGpbl1Azhf4WRKGDfuUTx8",
-  gid: "0"
+  id: "1OMAG9dMHwxBgbFLukGHn_uYJszFYdQBoGkB1HOwmiUs",
+  gid: "312284377"
 };
 
 /* Login / user data.
