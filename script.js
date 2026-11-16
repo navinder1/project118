@@ -7,15 +7,23 @@ const SITE = {
   pageSize: 12                // jobs shown before "Load more"
 };
 
-// Google Sheet that holds your daily jobs.
+// Google Sheet that holds your daily jobs (public, Viewer only).
 // Sheet must be shared: Share > General access > "Anyone with the link" > Viewer
 const SHEET = {
   id: "181-DZ6WMudyfrxoLTpmHboGpbl1Azhf4WRKGDfuUTx8",
   gid: "0"
 };
 
-const CSV_URL =
-  `https://docs.google.com/spreadsheets/d/${SHEET.id}/export?format=csv&gid=${SHEET.gid}`;
+/* Login / user data.
+   Users, applications and leads are stored in your SECOND Google Sheet
+   through the Code.gs Google Apps Script web app.
+   Keep the second sheet private. */
+const AUTH = {
+  scriptUrl:"https://script.google.com/macros/s/AKfycbyZ8mADGDxMvqPMSbDItrhM0rrgAgqygKCAFO5oAfUVs0LwT6QAdnkRF5GQ5DKVbhznjw/exec",
+  popupDelayMs: 4000,         // login popup after the first search/click/scroll + this wait
+  fallbackDelayMs: 5000,      // popup if the visitor does nothing for this long after page load
+  sessionKey: "itjobs_session"
+};
 
 // Leave empty until the account exists. Empty = shown as "Coming soon".
 const LINKS = { whatsapp:"", telegram:"", instagram:"", linkedin:"", youtube:"", email:"" /* e.g. "mailto:hello@domain.com" */ };
@@ -154,6 +162,15 @@ function parseCSV(text){
   return rows;
 }
 
+/* Small toast message (used for login / apply feedback) */
+let toastTimer;
+function toast(msg){
+  let t = $("toast");
+  if (!t){ t = document.createElement("div"); t.id = "toast"; t.setAttribute("role","status"); document.body.appendChild(t); }
+  t.textContent = msg; t.classList.add("show");
+  clearTimeout(toastTimer); toastTimer = setTimeout(() => t.classList.remove("show"), 3500);
+}
+
 /* =========================================================
    5. LOAD JOBS FROM GOOGLE SHEET
    ========================================================= */
@@ -212,19 +229,182 @@ function updateStats(){
 }
 
 /* =========================================================
-   6. SAVED JOBS (localStorage, guarded)
+   6. AUTH: SESSION, API, MODAL, POPUP TIMER
    ========================================================= */
-const SAVE_KEY = "savedJobKeys";
-const jobKey = (j) => (j.link || j.title).toLowerCase();
-function getSaved(){ try { return JSON.parse(localStorage.getItem(SAVE_KEY)) || []; } catch { return []; } }
-function toggleSave(key){
-  const list = getSaved(), i = list.indexOf(key); i >= 0 ? list.splice(i,1) : list.push(key);
-  try { localStorage.setItem(SAVE_KEY, JSON.stringify(list)); } catch {}
-  renderJobs();
+let session = loadSession();          // { token, name, email } or null
+let pendingAction = null;             // runs after a successful login (e.g. open the job link)
+let authMode = "login";
+let popupTimer = null, popupDone = false;
+
+function loadSession(){
+  try { const s = JSON.parse(localStorage.getItem(AUTH.sessionKey)); return s && s.token ? s : null; } catch { return null; }
+}
+function setSession(s){
+  session = s;
+  try { s ? localStorage.setItem(AUTH.sessionKey, JSON.stringify(s)) : localStorage.removeItem(AUTH.sessionKey); } catch {}
+  renderAuthSlot(); renderJobs(); renderInternships(); prefillForm();
+}
+
+/* One endpoint, JSON body. Sent as text/plain so the browser needs no CORS preflight. */
+async function api(action, data){
+  if (!AUTH.scriptUrl) throw new Error("Login service is not connected yet. Add the Apps Script URL in script.js.");
+  const res = await fetch(AUTH.scriptUrl, { method:"POST", body: JSON.stringify({ action, ...data }) });
+  if (!res.ok) throw new Error("Server error (" + res.status + "). Try again.");
+  let out; try { out = await res.json(); } catch { throw new Error("Unexpected server reply. Check the Apps Script deployment."); }
+  if (!out.ok) throw new Error(out.error || "Request failed.");
+  return out;
+}
+
+function injectAuthStyles(){
+  const st = document.createElement("style");
+  st.textContent = `
+  .auth-slot{display:flex;align-items:center;gap:8px}
+  .user-chip{font-size:.85rem;font-weight:600;white-space:nowrap}
+  .modal[hidden]{display:none}
+  .modal{position:fixed;inset:0;z-index:1000;display:flex;align-items:center;justify-content:center;padding:16px}
+  .modal-backdrop{position:absolute;inset:0;background:rgba(10,31,68,.6);backdrop-filter:blur(3px)}
+  .modal-box{position:relative;background:var(--card,#fff);color:var(--text,#0f172a);width:100%;max-width:420px;max-height:92vh;overflow:auto;border-radius:16px;padding:26px 24px;box-shadow:0 24px 60px rgba(0,0,0,.35);animation:mpop .22s ease-out}
+  @keyframes mpop{from{opacity:0;transform:translateY(12px) scale(.98)}to{opacity:1;transform:none}}
+  .modal-box h2{margin:0 0 4px;font-size:1.35rem}
+  .modal-sub{margin:0 0 14px;font-size:.92rem;opacity:.8}
+  .modal-x{position:absolute;top:10px;right:12px;border:0;background:none;font-size:1.8rem;line-height:1;cursor:pointer;color:inherit;opacity:.7}
+  .modal-x:hover{opacity:1}
+  .modal .tabs{display:flex;gap:6px;margin-bottom:14px;border-bottom:1px solid rgba(128,128,128,.3)}
+  .modal .tabs button{flex:1;border:0;background:none;padding:9px 6px;font:inherit;font-weight:600;cursor:pointer;color:inherit;opacity:.65;border-bottom:3px solid transparent}
+  .modal .tabs button[aria-selected="true"]{opacity:1;border-bottom-color:var(--blue,#1d4ed8)}
+  .modal .field{margin-bottom:10px}
+  .modal .field label{display:block;font-size:.85rem;margin-bottom:4px;font-weight:600}
+  .modal .field input{width:100%;box-sizing:border-box}
+  .modal .check{display:flex;gap:8px;align-items:flex-start;font-size:.82rem;margin:6px 0}
+  .modal .check input{margin-top:3px}
+  .modal-later{display:block;margin:12px auto 0;border:0;background:none;color:inherit;opacity:.7;cursor:pointer;font:inherit;font-size:.88rem;text-decoration:underline}
+  .modal [data-signup][hidden]{display:none}
+  .modal .err-text{color:#c0392b;font-size:.85rem;min-height:1em}
+  #toast{position:fixed;left:50%;bottom:24px;transform:translate(-50%,20px);background:#0A1F44;color:#fff;padding:11px 18px;border-radius:10px;font-size:.92rem;opacity:0;pointer-events:none;transition:.25s;z-index:1100;max-width:90vw;text-align:center}
+  #toast.show{opacity:1;transform:translate(-50%,0)}
+  body.modal-open{overflow:hidden}
+  @media (prefers-reduced-motion:reduce){.modal-box{animation:none}#toast{transition:none}}`;
+  document.head.appendChild(st);
+}
+
+function renderAuthSlot(){
+  const slot = $("authSlot"); if (!slot) return;
+  slot.innerHTML = session
+    ? `<span class="user-chip">Hi, ${esc((session.name || session.email).split(" ")[0])}</span><button class="btn btn-ghost btn-sm" type="button" data-logout>Logout</button>`
+    : `<button class="btn btn-ghost btn-sm" type="button" data-open-auth>Login</button>`;
+}
+
+function setAuthMode(mode){
+  authMode = mode;
+  const signup = mode === "signup";
+  $("tabLogin").setAttribute("aria-selected", !signup); $("tabSignup").setAttribute("aria-selected", signup);
+  document.querySelectorAll("#authForm [data-signup]").forEach((el) => { el.hidden = !signup; });
+  $("authSubmit").textContent = signup ? "Create account" : "Log in";
+  $("authTitle").textContent = signup ? "Create your account" : "Log in";
+  $("aPass").setAttribute("autocomplete", signup ? "new-password" : "current-password");
+  $("authErr").textContent = "";
+}
+function openAuth(mode, reason){
+  if (session) return;
+  setAuthMode(mode || "login");
+  $("authSub").textContent = reason || "Log in to apply for jobs and save listings.";
+  $("authModal").hidden = false; document.body.classList.add("modal-open");
+  setTimeout(() => $("aEmail").focus(), 50);
+}
+function closeAuth(){
+  $("authModal").hidden = true; document.body.classList.remove("modal-open");
+  $("authForm").reset(); $("authErr").textContent = "";
+}
+function dismissAuth(){ pendingAction = null; closeAuth(); }
+
+/* Run an action only for logged-in users; otherwise show the login popup first. */
+function requireLogin(reason, action){
+  if (session) return action();
+  pendingAction = action; popupDone = true; clearTimeout(popupTimer);
+  openAuth("login", reason);
+}
+
+/* Login popup after the visitor waits 4-5 seconds. Fires once per visit. */
+function armPopup(ms){
+  if (session || popupDone) return;
+  clearTimeout(popupTimer);
+  popupTimer = setTimeout(() => {
+    if (session || popupDone || !$("authModal").hidden) return;
+    popupDone = true;
+    openAuth("login", "Log in to apply for jobs, save listings and get fresher alerts.");
+  }, ms);
+}
+function initPopupTriggers(){
+  if (session) return;
+  armPopup(AUTH.fallbackDelayMs);
+  let engaged = false;
+  const engage = () => { if (engaged) return; engaged = true; armPopup(AUTH.popupDelayMs); };
+  ["input","change","click","keydown","scroll","touchstart"].forEach((ev) => document.addEventListener(ev, (e) => {
+    if (e.target.closest && e.target.closest("#authModal")) return;
+    engage();
+  }, { passive:true, capture:true }));
+}
+
+async function handleAuthSubmit(e){
+  e.preventDefault();
+  const email = $("aEmail").value.trim().toLowerCase(), pass = $("aPass").value;
+  const name = $("aName").value.trim(), phone = $("aPhone").value.trim(), signup = authMode === "signup";
+  const err = (m) => { $("authErr").textContent = m; };
+  if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email)) return err("Enter a valid email address.");
+  if (pass.length < 8) return err("Password must be at least 8 characters.");
+  if (signup){
+    if (name.length < 2) return err("Enter your full name.");
+    if (phone && !/^[+]?[\d\s-]{10,14}$/.test(phone)) return err("Enter a valid phone number or leave it empty.");
+    if (!$("aConsent").checked) return err("Please tick the consent box to create an account.");
+  }
+  const btn = $("authSubmit"), label = btn.textContent;
+  btn.disabled = true; btn.textContent = "Please wait…"; err("");
+  try{
+    const out = await api(signup ? "signup" : "login", { name, email, phone, password: pass });
+    setSession({ token: out.token, name: out.name || name || email, email });
+    const run = pendingAction; pendingAction = null;
+    closeAuth(); toast(signup ? "Account created. You are logged in." : "Welcome back!");
+    if (run) run();
+  }catch(ex){ err(ex.message); }
+  finally{ btn.disabled = false; btn.textContent = label; }
+}
+
+function logout(){
+  if (session && AUTH.scriptUrl) api("logout", { token: session.token }).catch(() => {});
+  setSession(null); toast("You have been logged out.");
+}
+
+/* Apply: open the employer link, and record the click in the user's sheet. */
+function doApply(job){
+  if (!job || !isValidUrl(job.link)) return;
+  const w = window.open(job.link, "_blank");
+  if (w){ try { w.opener = null; } catch {} } else toast("Your browser blocked the pop-up. Tap Apply Now again.");
+  if (session && AUTH.scriptUrl){
+    api("apply", { token: session.token, title: job.title, company: job.company, link: job.link }).catch((ex) => {
+      if (/session/i.test(ex.message)){ setSession(null); toast("Session expired. Please log in again."); }
+    });
+  }
+}
+function prefillForm(){
+  if (!session) return;
+  if (!$("fName").value) $("fName").value = session.name || "";
+  if (!$("fContact").value) $("fContact").value = session.email || "";
 }
 
 /* =========================================================
-   7. FILTER + RENDER JOBS
+   7. SAVED JOBS (localStorage, per user, guarded)
+   ========================================================= */
+const saveKey = () => "savedJobKeys:" + (session ? session.email : "guest");
+const jobKey = (j) => (j.link || j.title).toLowerCase();
+function getSaved(){ if (!session) return []; try { return JSON.parse(localStorage.getItem(saveKey())) || []; } catch { return []; } }
+function toggleSave(key){
+  const list = getSaved(), i = list.indexOf(key); i >= 0 ? list.splice(i,1) : list.push(key);
+  try { localStorage.setItem(saveKey(), JSON.stringify(list)); } catch {}
+  renderJobs(); renderInternships();
+}
+
+/* =========================================================
+   8. FILTER + RENDER JOBS
    ========================================================= */
 const state = { q:"", kind:"All", skill:"All", days:0, savedOnly:false, shown:SITE.pageSize };
 
@@ -243,14 +423,14 @@ function filterJobs(){
     (!state.days || daysAgo(j.date) <= state.days) &&
     (!state.savedOnly || saved.includes(jobKey(j))));
 }
-function applyButton(url){
-  return url && isValidUrl(url)
-    ? `<a class="btn btn-primary btn-sm" href="${esc(url)}" target="_blank" rel="noopener noreferrer">Apply Now</a>`
+function applyButton(j){
+  return j.link && isValidUrl(j.link)
+    ? `<button class="btn btn-primary btn-sm" type="button" data-apply="${esc(j.id)}">${session ? "Apply Now" : "Login to Apply"}</button>`
     : `<span class="btn btn-sm" aria-disabled="true">Link unavailable</span>`;
 }
 function jobCard(j, saved){
   const src = hostOf(j.link);
-  const meta = [j.company && j.location ? "" : "", j.location, j.experience, j.date && ("Posted " + fmtDate(j.date)), src && ("via " + src)].filter(Boolean);
+  const meta = [j.location, j.experience, j.date && ("Posted " + fmtDate(j.date)), src && ("via " + src)].filter(Boolean);
   const name = j.company || src || j.title;
   return `<article class="card job">
     <div class="job-top"><div class="ini" aria-hidden="true">${esc(initials(name))}</div>
@@ -260,7 +440,7 @@ function jobCard(j, saved){
     <div class="meta">${meta.map((m) => `<span>${esc(m)}</span>`).join("")}</div>
     ${j.description ? `<p class="desc">${esc(j.description)}</p>` : ""}
     ${j.skills.length ? `<div class="tags">${j.skills.map((s) => `<span class="skill">${esc(s)}</span>`).join("")}</div>` : ""}
-    <div class="foot">${applyButton(j.link)}</div></article>`;
+    <div class="foot">${applyButton(j)}</div></article>`;
 }
 function renderJobs(){
   const saved = getSaved(), r = filterJobs(), page = r.slice(0, state.shown);
@@ -281,7 +461,7 @@ function renderInternships(){
 }
 
 /* =========================================================
-   8. STATIC SECTIONS
+   9. STATIC SECTIONS
    ========================================================= */
 function renderRoadmaps(){
   $("roadGrid").innerHTML = roadmaps.map((r,i) => `<article class="card road">
@@ -325,9 +505,9 @@ function renderLinks(){
 }
 
 /* =========================================================
-   9. INTEREST FORM (frontend only until you connect a form service)
+   10. INTEREST FORM (saved to the "Leads" tab when the Apps Script URL is set)
    ========================================================= */
-function handleForm(e){
+async function handleForm(e){
   e.preventDefault();
   const name = $("fName").value.trim(), contact = $("fContact").value.trim(), ok = $("fConsent").checked;
   const emailOk = /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(contact), phoneOk = /^[+]?[\d\s-]{10,14}$/.test(contact);
@@ -335,11 +515,22 @@ function handleForm(e){
   $("eContact").textContent = (emailOk || phoneOk) ? "" : "Enter a valid email or 10-digit phone number.";
   $("eConsent").textContent = ok ? "" : "Please tick the consent box to continue.";
   if (name.length < 2 || !(emailOk || phoneOk) || !ok){ $("formMsg").innerHTML = ""; return; }
-  $("formMsg").innerHTML = '<div class="form-msg info">Details look valid, but no form service is connected yet, so nothing was sent or saved. Connect Formspree, Google Forms or your API before launch.</div>';
+  if (!AUTH.scriptUrl){
+    $("formMsg").innerHTML = '<div class="form-msg info">Details look valid, but no data service is connected yet, so nothing was sent or saved.</div>';
+    return;
+  }
+  const btn = e.target.querySelector('[type="submit"]'); btn.disabled = true;
+  try{
+    await api("lead", { name, contact, tech: $("fTech").value, level: $("fLevel").value });
+    $("formMsg").innerHTML = '<div class="form-msg ok">Thank you. We will share updates on workshops and upcoming batches.</div>';
+    e.target.reset(); prefillForm();
+  }catch(ex){
+    $("formMsg").innerHTML = `<div class="form-msg info">Could not send your details. ${esc(ex.message)}</div>`;
+  }finally{ btn.disabled = false; }
 }
 
 /* =========================================================
-   10. ANIMATIONS (skipped if visitor prefers reduced motion)
+   11. ANIMATIONS (skipped if visitor prefers reduced motion)
    ========================================================= */
 function initAnimations(){
   const skills = ["Java","Python","SQL","React","Spring Boot","Django","DSA","AWS","Git","Machine Learning","REST APIs","Docker","Node.js","Power BI"];
@@ -357,25 +548,50 @@ function initAnimations(){
 }
 
 /* =========================================================
-   11. INIT
+   12. INIT
    ========================================================= */
 function init(){
+  injectAuthStyles();
   document.querySelectorAll("#brandName,.brandName2").forEach((n) => { n.textContent = SITE.name; });
   $("year").textContent = new Date().getFullYear();
-  renderRoadmaps(); renderStatic(); renderCourses(); renderLinks();
+  renderAuthSlot(); renderRoadmaps(); renderStatic(); renderCourses(); renderLinks(); prefillForm();
 
   $("q").addEventListener("input", (e) => { state.q = e.target.value; state.shown = SITE.pageSize; renderJobs(); });
   $("fType").addEventListener("change", (e) => { state.kind = e.target.value; state.shown = SITE.pageSize; renderJobs(); });
   $("fSkill").addEventListener("change", (e) => { state.skill = e.target.value; state.shown = SITE.pageSize; renderJobs(); });
   $("fDate").addEventListener("change", (e) => { state.days = +e.target.value; state.shown = SITE.pageSize; renderJobs(); });
-  $("savedOnly").addEventListener("change", (e) => { state.savedOnly = e.target.checked; renderJobs(); });
+  $("savedOnly").addEventListener("change", (e) => {
+    if (e.target.checked && !session){ e.target.checked = false; requireLogin("Log in to see your saved jobs.", () => { state.savedOnly = true; $("savedOnly").checked = true; renderJobs(); }); return; }
+    state.savedOnly = e.target.checked; renderJobs();
+  });
   $("clearBtn").addEventListener("click", clearFilters); $("emptyClear").addEventListener("click", clearFilters);
   $("moreBtn").addEventListener("click", () => { state.shown += SITE.pageSize; renderJobs(); });
   $("fresherBtn").addEventListener("click", () => { clearFilters(); state.kind = "Fresher"; $("fType").value = "Fresher"; renderJobs(); $("jobs").scrollIntoView({behavior:"smooth"}); });
   $("interestForm").addEventListener("submit", handleForm);
 
-  const onSave = (e) => { const b = e.target.closest("[data-save]"); if (b){ toggleSave(b.dataset.save); renderInternships(); } };
-  $("jobGrid").addEventListener("click", onSave); $("internGrid").addEventListener("click", onSave);
+  /* Job cards: Apply and Save both need a login */
+  const onJobClick = (e) => {
+    const a = e.target.closest("[data-apply]");
+    if (a){
+      const job = allJobs.find((j) => j.id === a.dataset.apply);
+      requireLogin("Log in to apply for this job.", () => doApply(job));
+      return;
+    }
+    const b = e.target.closest("[data-save]");
+    if (b){ const key = b.dataset.save; requireLogin("Log in to save jobs.", () => toggleSave(key)); }
+  };
+  $("jobGrid").addEventListener("click", onJobClick); $("internGrid").addEventListener("click", onJobClick);
+
+  /* Auth UI */
+  $("authSlot").addEventListener("click", (e) => {
+    if (e.target.closest("[data-open-auth]")) { popupDone = true; clearTimeout(popupTimer); openAuth("login"); }
+    if (e.target.closest("[data-logout]")) logout();
+  });
+  $("authModal").addEventListener("click", (e) => { if (e.target.closest("[data-close-auth]")) dismissAuth(); });
+  $("tabLogin").addEventListener("click", () => setAuthMode("login"));
+  $("tabSignup").addEventListener("click", () => setAuthMode("signup"));
+  $("authForm").addEventListener("submit", handleAuthSubmit);
+
   $("roadGrid").addEventListener("click", (e) => { const b = e.target.closest("[data-road]"); if (!b) return;
     const open = $("steps" + b.dataset.road).classList.toggle("show"); b.setAttribute("aria-expanded", open); b.textContent = open ? "Hide Roadmap" : "View Roadmap"; });
   $("chalGrid").addEventListener("click", (e) => { const b = e.target.closest("[data-chal]"); if (!b) return;
@@ -388,9 +604,12 @@ function init(){
   const setMenu = (open) => { menu.classList.toggle("open", open); burger.setAttribute("aria-expanded", open); burger.textContent = open ? "Close" : "Menu"; };
   burger.addEventListener("click", () => setMenu(!menu.classList.contains("open")));
   menu.addEventListener("click", (e) => { if (e.target.closest("a")) setMenu(false); });
-  document.addEventListener("keydown", (e) => { if (e.key === "Escape") setMenu(false); });
+  document.addEventListener("keydown", (e) => {
+    if (e.key === "Escape"){ setMenu(false); if (!$("authModal").hidden) dismissAuth(); }
+  });
   document.querySelectorAll("[data-todo]").forEach((a) => a.addEventListener("click", (e) => { e.preventDefault(); alert(a.dataset.todo + " page is not published yet. Add it before launch."); }));
 
   loadJobs();
+  initPopupTriggers();
 }
 document.addEventListener("DOMContentLoaded", () => { init(); initAnimations(); });

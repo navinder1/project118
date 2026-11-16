@@ -29,6 +29,7 @@
       <li><a class="link" href="#courses">Courses</a></li>
       <li><a class="link" href="#interview">Interview Prep</a></li>
       <li><a class="link" href="#contact">Contact</a></li>
+      <li id="authSlot" class="auth-slot"></li>
       <li><a class="btn btn-primary btn-sm" href="#jobs">Explore Jobs</a></li>
     </ul>
   </div>
@@ -64,7 +65,7 @@
     <div class="wrap">
       <div class="sec-head">
         <h2>Latest IT Jobs</h2>
-        <p>Search by title, skill or keyword. Newest openings appear first.</p>
+        <p>Search by title, skill or keyword. Newest openings appear first. Log in to apply and save jobs.</p>
         <span class="badge" id="lastUpdated">Loading…</span>
       </div>
       <div id="jobNotice" role="status"></div>
@@ -245,6 +246,30 @@
     <div class="legal">&copy; <span id="year"></span> <span class="brandName2"></span>. Job listings link to third-party sites. Privacy Policy and Terms pages must be written before launch.</div>
   </div>
 </footer>
+
+<!-- LOGIN / SIGN-UP MODAL (styles are injected by script.js) -->
+<div class="modal" id="authModal" hidden>
+  <div class="modal-backdrop" data-close-auth></div>
+  <div class="modal-box" role="dialog" aria-modal="true" aria-labelledby="authTitle">
+    <button class="modal-x" type="button" data-close-auth aria-label="Close">&times;</button>
+    <h2 id="authTitle">Log in</h2>
+    <p class="modal-sub" id="authSub">Log in to apply for jobs and save listings.</p>
+    <div class="tabs" role="tablist">
+      <button type="button" role="tab" id="tabLogin" data-mode="login" aria-selected="true">Log in</button>
+      <button type="button" role="tab" id="tabSignup" data-mode="signup" aria-selected="false">Sign up</button>
+    </div>
+    <form id="authForm" novalidate>
+      <div class="field" data-signup hidden><label for="aName">Full name</label><input id="aName" autocomplete="name"></div>
+      <div class="field"><label for="aEmail">Email</label><input id="aEmail" type="email" autocomplete="email" required></div>
+      <div class="field" data-signup hidden><label for="aPhone">Phone (optional)</label><input id="aPhone" type="tel" autocomplete="tel"></div>
+      <div class="field"><label for="aPass">Password</label><input id="aPass" type="password" autocomplete="current-password" minlength="8" required></div>
+      <label class="check" data-signup hidden><input type="checkbox" id="aConsent"><span>I agree that my name, email and phone will be stored to manage my account and job applications.</span></label>
+      <div class="err-text" id="authErr" role="alert"></div>
+      <button class="btn btn-primary" type="submit" id="authSubmit" style="width:100%;margin-top:12px">Log in</button>
+    </form>
+    <button class="modal-later" type="button" data-close-auth>Maybe later</button>
+  </div>
+</div>
 
 <script src="script.js"></script>
 </body>
