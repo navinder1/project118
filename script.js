@@ -19,7 +19,7 @@ const SHEET = {
    through the Code.gs Google Apps Script web app.
    Keep the second sheet private. */
 const AUTH = {
-  scriptUrl:"https://script.google.com/macros/s/AKfycbyZ8mADGDxMvqPMSbDItrhM0rrgAgqygKCAFO5oAfUVs0LwT6QAdnkRF5GQ5DKVbhznjw/exec",
+  scriptUrl:"https://script.google.com/macros/s/AKfycbwuHnkolD3e1K-iFxsKAhF6aVit6u8im0zuJt_2pZnY5CXCramhkhOQ24bcMqjOKuDfqA/exec",
   popupDelayMs: 4000,         // login popup after the first search/click/scroll + this wait
   fallbackDelayMs: 5000,      // popup if the visitor does nothing for this long after page load
   sessionKey: "itjobs_session"
